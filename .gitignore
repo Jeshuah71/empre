@@ -1,0 +1,41 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+*.jks
+*.pfx
+secrets.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local app data and generated indexes
+data/uploads/
+data/indices/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Potentially sensitive business documents
+*.pdf
+*.pptx
