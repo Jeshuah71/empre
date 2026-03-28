@@ -31,11 +31,23 @@ REPORT_PATHS = {
 }
 PRICING_URL = "/?view=landing#pricing"
 WORKSPACE_OPTIONS = ["Chat", "Metrics", "Investment"]
-QUICK_QUERIES = [
-    ("quick_yoy_revenue", "📈 YoY Revenue", "Summarize YoY Revenue Growth (Azure/Cloud)"),
-    ("quick_risk_factors", "⚠️ Risk Factors", "Analyze Item 1A: Risk Factors"),
-    ("quick_ai_capex", "🏗️ AI CapEx", "Audit CapEx vs. AI Infrastructure Spend"),
-]
+QUICK_QUERY_MAP = {
+    "NVIDIA Corp. (FY2025 10-K)": [
+        ("quick_yoy_revenue", "📈 YoY Revenue", "Summarize YoY revenue growth across NVIDIA and highlight Data Center and Gaming performance."),
+        ("quick_risk_factors", "⚠️ Risk Factors", "Analyze Item 1A: Risk Factors and summarize the most material risks for NVIDIA."),
+        ("quick_ai_capex", "🏗️ AI CapEx", "Audit AI infrastructure demand, capital intensity, and supply constraints discussed in the NVIDIA filing."),
+    ],
+    "Microsoft Corp. (Q4 2025 10-Q)": [
+        ("quick_yoy_revenue", "📈 YoY Revenue", "Summarize YoY revenue growth and highlight Azure or Cloud performance where disclosed."),
+        ("quick_risk_factors", "⚠️ Risk Factors", "Analyze Item 1A: Risk Factors and summarize the most material risks for Microsoft."),
+        ("quick_ai_capex", "🏗️ AI CapEx", "Audit CapEx versus AI infrastructure spend and explain how Microsoft describes data center or cloud investment."),
+    ],
+    "Upload Custom PDF...": [
+        ("quick_yoy_revenue", "📈 YoY Revenue", "Summarize year-over-year revenue growth using the filing selected in this session."),
+        ("quick_risk_factors", "⚠️ Risk Factors", "Analyze the most material risk factors discussed in the selected filing."),
+        ("quick_ai_capex", "🏗️ AI CapEx", "Audit capital expenditures, infrastructure investment, and AI-related spending in the selected filing."),
+    ],
+}
 METRIC_SPECS = [
     (
         "Revenue",
@@ -63,6 +75,15 @@ METRIC_SPECS = [
         "What is the reported capital expenditures figure in this filing? Prefer property and equipment additions or purchases from the cash flow statement or MD&A.",
     ),
 ]
+METRIC_KEYWORDS = {
+    "Revenue": ["revenue", "net sales", "total revenue", "statement of income", "income statement"],
+    "Net Income": ["net income", "net earnings", "net loss", "statement of income", "income statement"],
+    "Operating Cash Flow": ["operating activities", "net cash provided by operating activities", "cash flows"],
+    "Cash & Equivalents": ["cash and cash equivalents", "balance sheets", "cash equivalents"],
+    "Debt": ["long-term debt", "total debt", "debt", "borrowings", "notes payable"],
+    "CapEx": ["capital expenditures", "purchases of property", "property and equipment", "additions", "capex"],
+}
+RISK_KEYWORDS = ["risk factors", "item 1a", "risk factor", "uncertainties", "material adverse"]
 INVESTMENT_PROMPT = """
 You are preparing a document-based investment readiness view for one SEC filing.
 Use only the provided filing context.
@@ -105,6 +126,10 @@ def _init_state():
         st.session_state.current_query = None
     if "theme_mode" not in st.session_state:
         st.session_state.theme_mode = "Dark"
+    if "raw_documents" not in st.session_state:
+        st.session_state.raw_documents = []
+    if "paywall_triggered" not in st.session_state:
+        st.session_state.paywall_triggered = False
 
 
 def _get_route() -> str:
@@ -805,11 +830,20 @@ def _inject_styles():
         .alpha-overlay__button {
           display: inline-block;
           text-decoration: none;
-          background: var(--alpha-blue);
-          color: white;
+          background: linear-gradient(90deg, #4a8dff 0%, #79aaff 100%);
+          color: #ffffff !important;
           padding: 0.85rem 1.2rem;
           border-radius: 999px;
           font-weight: 700;
+          border: 1px solid rgba(255,255,255,0.16);
+          box-shadow: 0 14px 26px rgba(23, 86, 196, 0.28);
+        }
+
+        .alpha-overlay__button:hover,
+        .alpha-overlay__button:visited,
+        .alpha-overlay__button:active {
+          color: #ffffff !important;
+          text-decoration: none;
         }
 
         .alpha-citation-note {
@@ -963,8 +997,12 @@ def _render_chat_intro():
 
 
 def _render_prompt_dock():
+    quick_queries = QUICK_QUERY_MAP.get(
+        st.session_state.selected_report,
+        QUICK_QUERY_MAP["Upload Custom PDF..."],
+    )
     cols = st.columns(3)
-    for col, (key, label, query) in zip(cols, QUICK_QUERIES):
+    for col, (key, label, query) in zip(cols, quick_queries):
         with col:
             if st.button(label, key=key, use_container_width=True):
                 st.session_state.current_query = query
@@ -976,6 +1014,8 @@ def _clear_demo_state():
     st.session_state.doc_stats = None
     st.session_state.index_key = None
     st.session_state.usage_count = 0
+    st.session_state.raw_documents = []
+    st.session_state.paywall_triggered = False
 
 
 def _render_landing():
@@ -1231,7 +1271,11 @@ def _ensure_demo_chain(file_paths: List[str], index_key: str | None):
                 st.session_state.vectorstore = result.vectorstore
                 st.session_state.doc_stats = (result.doc_count, result.chunk_count)
                 st.session_state.index_key = index_key
+                st.session_state.raw_documents = result.documents or processor.load_pdfs(file_paths)
                 st.session_state.messages = []
+                st.session_state.paywall_triggered = False
+            elif not st.session_state.raw_documents:
+                st.session_state.raw_documents = processor.load_pdfs(file_paths)
             engine = LLMEngine()
             chain = engine.build_qa_chain(st.session_state.vectorstore)
         except DocumentProcessorError as exc:
@@ -1240,6 +1284,7 @@ def _ensure_demo_chain(file_paths: List[str], index_key: str | None):
         st.session_state.vectorstore = None
         st.session_state.doc_stats = None
         st.session_state.index_key = None
+        st.session_state.raw_documents = []
     return chain
 
 
@@ -1307,7 +1352,179 @@ def _run_metric_prompt(vectorstore, label: str, question: str) -> Tuple[Dict, Li
     return payload, sources
 
 
-def _compute_document_insights(index_key: str, vectorstore) -> Dict:
+def _page_num(doc) -> int:
+    meta = doc.metadata or {}
+    page = meta.get("page", 0)
+    return (page + 1) if isinstance(page, int) else 0
+
+
+def _source_line(doc) -> str:
+    meta = doc.metadata or {}
+    source = meta.get("document") or meta.get("source", "unknown")
+    return f"- {source} (page {_page_num(doc)})"
+
+
+def _collect_candidate_pages(documents: List, keywords: List[str], limit: int = 4) -> List:
+    scored = []
+    keywords_lower = [k.lower() for k in keywords]
+    for doc in documents or []:
+        text = (doc.page_content or "").lower()
+        score = sum(1 for keyword in keywords_lower if keyword in text)
+        if score > 0:
+            scored.append((score, _page_num(doc), doc))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [doc for _, _, doc in scored[:limit]]
+
+
+def _render_context_block(documents: List) -> str:
+    blocks = []
+    for doc in documents:
+        blocks.append(f"[Page {_page_num(doc)}]\n{doc.page_content[:4500]}")
+    return "\n\n".join(blocks)
+
+
+def _build_metric_context(documents: List, label: str) -> Tuple[str, List[str]]:
+    candidates = _collect_candidate_pages(documents, METRIC_KEYWORDS.get(label, [label]), limit=4)
+    if not candidates:
+        return "", []
+    return _render_context_block(candidates), [_source_line(doc) for doc in candidates]
+
+
+def _build_risk_context(documents: List) -> Tuple[str, List[str]]:
+    candidates = _collect_candidate_pages(documents, RISK_KEYWORDS, limit=4)
+    if not candidates:
+        return "", []
+    return _render_context_block(candidates), [_source_line(doc) for doc in candidates]
+
+
+def _run_direct_prompt(prompt: str) -> Dict:
+    engine = LLMEngine()
+    llm = engine.primary_llm or engine.fallback_llm
+    if llm is None:
+        raise RuntimeError("No LLM provider is configured.")
+    response = llm.invoke(prompt)
+    content = response.content if hasattr(response, "content") else str(response)
+    return _extract_json_block(content)
+
+
+def _run_metric_from_documents(documents: List, label: str, question: str) -> Tuple[Dict, List[str]]:
+    context, sources = _build_metric_context(documents, label)
+    if not context:
+        return {
+            "label": label,
+            "value": "Not clearly disclosed",
+            "trend": "watch",
+            "note": "Alpha-RAG could not find a relevant statement page for this metric.",
+        }, []
+    prompt = f"""
+Use only the filing pages below to answer this metric question.
+Return valid JSON only with this exact schema:
+{{
+  "label": "{label}",
+  "value": "...",
+  "trend": "improving|stable|watch",
+  "note": "one short sentence"
+}}
+Rules:
+- Prefer exact figures from statement tables.
+- Include units if shown, such as million or billion.
+- If the figure is unclear, set value to "Not clearly disclosed".
+- Use "watch" for missing, deteriorating, or materially concerning signals.
+- Use "improving" only when the pages clearly support that conclusion.
+- Otherwise use "stable".
+Question: {question}
+
+Filing pages:
+{context}
+""".strip()
+    try:
+        payload = _run_direct_prompt(prompt)
+    except Exception:
+        payload = {
+            "label": label,
+            "value": "Not clearly disclosed",
+            "trend": "watch",
+            "note": "Alpha-RAG could not confidently extract this metric from the selected filing pages.",
+        }
+    payload["label"] = label
+    return payload, sources
+
+
+def _compute_investment_from_metrics(metric_payloads: List[Dict], documents: List) -> Tuple[Dict, List[str]]:
+    bullish = []
+    risks = []
+    score = 50
+
+    for metric in metric_payloads:
+        label = metric.get("label", "Metric")
+        trend = (metric.get("trend") or "").lower()
+        note = metric.get("note", "")
+        value = metric.get("value", "Not clearly disclosed")
+        if value != "Not clearly disclosed" and trend == "improving":
+            bullish.append(f"{label}: {value}. {note}".strip())
+            score += 8
+        elif value != "Not clearly disclosed" and trend == "stable":
+            bullish.append(f"{label}: {value}.")
+            score += 3
+        else:
+            risks.append(f"{label}: {note or 'Not clearly disclosed from the filing pages reviewed.'}")
+            score -= 6
+
+    risk_context, risk_sources = _build_risk_context(documents)
+    risk_summary = ""
+    if risk_context:
+        risk_prompt = f"""
+Use only the filing pages below.
+Return valid JSON only:
+{{
+  "summary": "one or two sentences",
+  "risk_signals": ["...", "...", "..."]
+}}
+Summarize the most important risk factor signals for an institutional analyst.
+
+Filing pages:
+{risk_context}
+""".strip()
+        try:
+            risk_payload = _run_direct_prompt(risk_prompt)
+            risk_summary = risk_payload.get("summary", "")
+            risks.extend(risk_payload.get("risk_signals", []))
+        except Exception:
+            pass
+
+    score = max(15, min(85, score))
+    if score >= 70:
+        stance = "Constructive"
+    elif score >= 40:
+        stance = "Balanced"
+    else:
+        stance = "Cautious"
+
+    if not bullish:
+        bullish = ["The filing does not yet show enough clearly favorable evidence across the extracted metrics."]
+    if not risks:
+        risks = ["Risk disclosure did not surface a concentrated concern in the reviewed pages."]
+
+    rationale = risk_summary or "This view is based on extracted filing metrics, cash generation, balance sheet strength, and document-level risk disclosure."
+    verdict = (
+        "The filing supports constructive follow-up work."
+        if stance == "Constructive"
+        else "The filing looks investable but still needs analyst follow-up."
+        if stance == "Balanced"
+        else "The filing presents enough uncertainty that further diligence is required before a constructive view."
+    )
+    payload = {
+        "stance": stance,
+        "score": score,
+        "rationale": rationale,
+        "bullish_signals": bullish[:4],
+        "risk_signals": risks[:4],
+        "verdict": verdict,
+    }
+    return payload, risk_sources
+
+
+def _compute_document_insights(index_key: str, vectorstore, documents: List) -> Dict:
     cached = st.session_state.insight_cache.get(index_key)
     if cached:
         return cached
@@ -1315,7 +1532,7 @@ def _compute_document_insights(index_key: str, vectorstore) -> Dict:
     metric_payloads = []
     metric_sources = []
     for label, question in METRIC_SPECS:
-        payload, sources = _run_metric_prompt(vectorstore, label, question)
+        payload, sources = _run_metric_from_documents(documents, label, question)
         metric_payloads.append(payload)
         metric_sources.extend(sources)
 
@@ -1327,24 +1544,22 @@ def _compute_document_insights(index_key: str, vectorstore) -> Dict:
 
     metrics_payload = {
         "headline": f"{len(confirmed_metrics)} key figures extracted from the filing" if confirmed_metrics else "Metrics unavailable",
-        "summary": "Alpha-RAG assembled this panel from filing-specific retrieval across financial statements." if confirmed_metrics else "Alpha-RAG could not confidently assemble a metrics dashboard from the retrieved filing context.",
+        "summary": "Alpha-RAG assembled this panel from filing statement pages and targeted document extraction." if confirmed_metrics else "Alpha-RAG could not confidently assemble a metrics dashboard from the filing pages reviewed.",
         "metrics": metric_payloads,
         "strengths": [f"{label} appears favorable based on the retrieved filing context." for label in improving[:3]],
         "watch_items": watch_items[:3],
     }
 
-    engine = LLMEngine()
-    investment_chain = engine.build_qa_chain(vectorstore, prompt=_build_structured_prompt(), search_k=14)
     try:
-        investment_payload, investment_sources = _run_structured_prompt(investment_chain, INVESTMENT_PROMPT)
+        investment_payload, investment_sources = _compute_investment_from_metrics(metric_payloads, documents)
     except Exception:
         investment_payload = {
             "stance": "Balanced",
             "score": 50,
-            "rationale": "Alpha-RAG could not confidently derive a document-based investment signal from the retrieved context.",
+            "rationale": "Alpha-RAG could not confidently derive a document-based investment signal from the filing pages reviewed.",
             "bullish_signals": [],
             "risk_signals": ["Review the filing with narrower follow-up prompts."],
-            "verdict": "Insufficient evidence from the current retrieval context.",
+            "verdict": "Insufficient evidence from the current filing review.",
         }
         investment_sources = []
 
@@ -1482,7 +1697,11 @@ def _render_demo(chain: object | None):
 
     insights = None
     if st.session_state.vectorstore is not None and st.session_state.index_key and st.session_state.current_view in {"Metrics", "Investment"}:
-        insights = _compute_document_insights(st.session_state.index_key, st.session_state.vectorstore)
+        insights = _compute_document_insights(
+            st.session_state.index_key,
+            st.session_state.vectorstore,
+            st.session_state.raw_documents,
+        )
 
     with st.container():
         st.markdown("<div class='alpha-demo-panel'>", unsafe_allow_html=True)
@@ -1509,13 +1728,16 @@ def _render_demo(chain: object | None):
             _render_prompt_dock()
 
             prompt = None
-            if st.session_state.usage_count < TRIAL_LIMIT:
+            if not st.session_state.paywall_triggered:
                 prompt = st.session_state.current_query or st.chat_input("Ask the filing anything...")
 
             if st.session_state.current_query:
                 st.session_state.current_query = None
 
             if prompt:
+                if st.session_state.usage_count >= TRIAL_LIMIT:
+                    st.session_state.paywall_triggered = True
+                    st.rerun()
                 st.session_state.usage_count += 1
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
@@ -1541,7 +1763,7 @@ def _render_demo(chain: object | None):
                         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.session_state.usage_count >= TRIAL_LIMIT:
+    if st.session_state.paywall_triggered:
         _render_paywall_overlay()
 
 
