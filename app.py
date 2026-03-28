@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -102,6 +103,8 @@ def _init_state():
         st.session_state.insight_cache = {}
     if "current_query" not in st.session_state:
         st.session_state.current_query = None
+    if "theme_mode" not in st.session_state:
+        st.session_state.theme_mode = "Dark"
 
 
 def _get_route() -> str:
@@ -142,43 +145,100 @@ def _browser_shell(route: str):
     )
 
 
+def _logo_data_uri() -> str:
+    logo_path = BASE_DIR / "logo_vultur.png"
+    if not logo_path.exists():
+        return ""
+    encoded = base64.b64encode(logo_path.read_bytes()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
+
+
 def _inject_styles():
-    st.markdown(
+    is_light = st.session_state.theme_mode == "Light"
+    if is_light:
+        theme_vars = """
+        --alpha-bg: #f3f7fc;
+        --alpha-bg-2: #edf3fb;
+        --alpha-panel: rgba(255, 255, 255, 0.9);
+        --alpha-panel-strong: rgba(255, 255, 255, 0.96);
+        --alpha-panel-soft: rgba(255, 255, 255, 0.78);
+        --alpha-surface-1: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 249, 255, 0.96) 100%);
+        --alpha-surface-2: linear-gradient(180deg, rgba(248, 251, 255, 0.98) 0%, rgba(239, 245, 252, 0.98) 100%);
+        --alpha-surface-3: linear-gradient(180deg, rgba(241, 247, 255, 0.98) 0%, rgba(233, 241, 252, 0.98) 100%);
+        --alpha-soft-fill: rgba(17, 40, 68, 0.03);
+        --alpha-nav-fill: rgba(255, 255, 255, 0.8);
+        --alpha-button-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 247, 255, 0.98) 100%);
+        --alpha-shadow: 0 22px 60px rgba(31, 57, 88, 0.14);
+        --alpha-border: rgba(28, 56, 91, 0.12);
+        --alpha-text: #0d1b2a;
+        --alpha-dim: #546579;
+        --alpha-blue: #2d6df6;
+        --alpha-blue-strong: #2d6df6;
+        --alpha-gold: #9a6f2f;
+        --alpha-blue-soft: rgba(45, 109, 246, 0.12);
         """
+        app_background = """
+            radial-gradient(1200px 700px at 8% 0%, rgba(45, 109, 246, 0.1) 0%, rgba(45, 109, 246, 0) 55%),
+            radial-gradient(800px 520px at 90% 10%, rgba(202, 168, 106, 0.08) 0%, rgba(202, 168, 106, 0) 56%),
+            linear-gradient(180deg, #f3f7fc 0%, #eef4fb 32%, #f7faff 100%)
+        """
+        sidebar_background = "linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%)"
+    else:
+        theme_vars = """
+        --alpha-bg: #07111f;
+        --alpha-bg-2: #0a1628;
+        --alpha-panel: rgba(14, 24, 40, 0.88);
+        --alpha-panel-strong: rgba(18, 30, 49, 0.96);
+        --alpha-panel-soft: rgba(17, 29, 47, 0.72);
+        --alpha-surface-1: linear-gradient(180deg, rgba(13, 22, 37, 0.84) 0%, rgba(12, 22, 36, 0.72) 100%);
+        --alpha-surface-2: linear-gradient(180deg, rgba(15, 27, 44, 0.96) 0%, rgba(10, 20, 34, 0.96) 100%);
+        --alpha-surface-3: linear-gradient(180deg, rgba(19, 29, 45, 0.94) 0%, rgba(14, 23, 38, 0.94) 100%);
+        --alpha-soft-fill: rgba(255, 255, 255, 0.03);
+        --alpha-nav-fill: rgba(8, 16, 29, 0.72);
+        --alpha-button-fill: linear-gradient(180deg, rgba(27, 41, 65, 0.94) 0%, rgba(18, 29, 47, 0.94) 100%);
+        --alpha-shadow: 0 22px 60px rgba(2, 8, 17, 0.34);
+        --alpha-border: rgba(118, 155, 203, 0.16);
+        --alpha-text: #f4f7fb;
+        --alpha-dim: #9aa9bc;
+        --alpha-blue: #4a8dff;
+        --alpha-blue-strong: #77a8ff;
+        --alpha-gold: #caa86a;
+        --alpha-blue-soft: rgba(74, 141, 255, 0.18);
+        """
+        app_background = """
+            radial-gradient(1200px 700px at 8% 0%, rgba(74, 141, 255, 0.17) 0%, rgba(74, 141, 255, 0) 55%),
+            radial-gradient(800px 520px at 90% 10%, rgba(202, 168, 106, 0.1) 0%, rgba(202, 168, 106, 0) 56%),
+            linear-gradient(180deg, #07111f 0%, #0a1320 32%, #09111a 100%)
+        """
+        sidebar_background = "linear-gradient(180deg, #151a22 0%, #11161e 100%)"
+
+    css = """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@500;700;800&display=swap');
 
         :root {
-          --alpha-bg: #0b0f14;
-          --alpha-panel: #121821;
-          --alpha-panel-2: #171f2b;
-          --alpha-border: #1f2a37;
-          --alpha-text: #eef3fb;
-          --alpha-dim: #97a6ba;
-          --alpha-blue: #007BFF;
-          --alpha-blue-soft: rgba(0, 123, 255, 0.18);
+          __THEME_VARS__
         }
 
         html, body, [class*="css"] {
-          font-family: 'Inter', 'Roboto', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: var(--alpha-bg);
           color: var(--alpha-text);
+          scroll-behavior: smooth;
         }
 
         .stApp {
-          background:
-            radial-gradient(1100px 700px at 10% 0%, rgba(0, 123, 255, 0.12) 0%, rgba(0, 123, 255, 0) 52%),
-            linear-gradient(180deg, #0b0f14 0%, #0c1118 100%);
+          background: __APP_BACKGROUND__;
         }
 
         .block-container {
-          max-width: 1180px;
-          padding-top: 2rem;
+          max-width: 1260px;
+          padding-top: 1.2rem;
           padding-bottom: 6rem;
         }
 
         [data-testid="stSidebar"] {
-          background: linear-gradient(180deg, #151a22 0%, #11161e 100%);
+          background: __SIDEBAR_BACKGROUND__;
           border-right: 1px solid rgba(255,255,255,0.05);
         }
 
@@ -191,12 +251,110 @@ def _inject_styles():
           letter-spacing: -0.02em;
         }
 
+        .alpha-nav {
+          position: sticky;
+          top: 0.8rem;
+          z-index: 20;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1.4rem;
+          padding: 1.15rem 1.45rem;
+          margin-bottom: 2.5rem;
+          background: var(--alpha-nav-fill);
+          border: 1px solid var(--alpha-border);
+          border-radius: 26px;
+          box-shadow: var(--alpha-shadow);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+        }
+
+        .alpha-nav__brand {
+          display: inline-flex;
+          align-items: center;
+          gap: 1rem;
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.3rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--alpha-text);
+        }
+
+        .alpha-nav__logo {
+          width: 48px;
+          height: 48px;
+          object-fit: contain;
+          display: block;
+          filter: drop-shadow(0 8px 18px rgba(45, 109, 246, 0.18));
+        }
+
+        .alpha-theme-wrap {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 0.75rem;
+        }
+
+        .alpha-nav__links {
+          display: flex;
+          align-items: center;
+          gap: 1.35rem;
+          flex-wrap: wrap;
+        }
+
+        .alpha-nav__links a,
+        .alpha-nav__cta {
+          text-decoration: none;
+          color: var(--alpha-dim);
+          font-size: 1rem;
+          font-weight: 600;
+          transition: color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .alpha-nav__links a:hover,
+        .alpha-nav__cta:hover {
+          color: var(--alpha-text);
+          transform: translateY(-1px);
+        }
+
+        .alpha-nav__cta {
+          color: var(--alpha-text);
+          padding: 0.9rem 1.25rem;
+          border-radius: 999px;
+          border: 1px solid var(--alpha-border);
+          background: var(--alpha-button-fill);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
         .alpha-hero {
-          padding: 4rem 0 3rem;
+          padding: 2.4rem 0 2.2rem;
+        }
+
+        .alpha-hero-shell {
+          display: grid;
+          grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.85fr);
+          gap: 1.5rem;
+          align-items: stretch;
+        }
+
+        .alpha-hero-copy {
+          background: var(--alpha-surface-1);
+          border: 1px solid var(--alpha-border);
+          border-radius: 30px;
+          padding: 2.35rem;
+          box-shadow: var(--alpha-shadow);
+        }
+
+        .alpha-hero-panel {
+          background: var(--alpha-surface-2);
+          border: 1px solid var(--alpha-border);
+          border-radius: 30px;
+          padding: 1.85rem;
+          box-shadow: var(--alpha-shadow);
         }
 
         .alpha-eyebrow {
-          color: var(--alpha-blue);
+          color: var(--alpha-blue-strong);
           font-size: 0.86rem;
           font-weight: 700;
           letter-spacing: 0.12em;
@@ -205,39 +363,133 @@ def _inject_styles():
         }
 
         .alpha-title {
-          font-size: clamp(2.6rem, 6vw, 4.8rem);
-          line-height: 0.96;
+          font-family: 'Manrope', sans-serif;
+          font-size: clamp(2.9rem, 6vw, 5.1rem);
+          line-height: 0.95;
           font-weight: 800;
-          max-width: 820px;
+          max-width: 760px;
           margin: 0;
+          color: var(--alpha-text) !important;
         }
 
         .alpha-subtitle {
-          max-width: 680px;
+          max-width: 650px;
           color: var(--alpha-dim);
-          font-size: 1.12rem;
-          line-height: 1.7;
+          font-size: 1.08rem;
+          line-height: 1.8;
           margin-top: 1.25rem;
+        }
+
+        .alpha-actions {
+          display: flex;
+          gap: 0.9rem;
+          align-items: center;
+          flex-wrap: wrap;
+          margin-top: 1.7rem;
+        }
+
+        .alpha-secondary-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 2.9rem;
+          padding: 0.82rem 1.1rem;
+          border-radius: 999px;
+          color: var(--alpha-text);
+          text-decoration: none;
+          font-weight: 700;
+          border: 1px solid rgba(118, 155, 203, 0.18);
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .alpha-proof {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0.8rem;
+          margin-top: 1.7rem;
+        }
+
+        .alpha-proof__item {
+          background: var(--alpha-soft-fill);
+          border: 1px solid var(--alpha-border);
+          border-radius: 18px;
+          padding: 1rem;
+        }
+
+        .alpha-proof__value {
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.55rem;
+          font-weight: 800;
+          color: var(--alpha-text);
+        }
+
+        .alpha-proof__label {
+          color: var(--alpha-dim);
+          font-size: 0.88rem;
+          line-height: 1.5;
+          margin-top: 0.3rem;
+        }
+
+        .alpha-panel-label {
+          color: var(--alpha-gold);
+          font-size: 0.8rem;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          margin-bottom: 1rem;
+        }
+
+        .alpha-panel-title {
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.55rem;
+          font-weight: 800;
+          line-height: 1.2;
+          color: var(--alpha-text);
+        }
+
+        .alpha-panel-copy {
+          color: var(--alpha-dim);
+          line-height: 1.75;
+          margin-top: 0.85rem;
+          font-size: 0.97rem;
+        }
+
+        .alpha-list {
+          margin: 1.2rem 0 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        .alpha-list li {
+          color: var(--alpha-text);
+          line-height: 1.65;
+          padding: 0.85rem 0;
+          border-top: 1px solid rgba(118, 155, 203, 0.12);
+        }
+
+        .alpha-list li:first-child {
+          border-top: 0;
+          padding-top: 0;
         }
 
         .alpha-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
-          margin-top: 2rem;
+          gap: 18px;
+          margin-top: 1.35rem;
         }
 
         .alpha-card {
-          background: linear-gradient(180deg, rgba(22,29,40,0.96) 0%, rgba(17,23,32,0.96) 100%);
+          background: var(--alpha-surface-3);
           border: 1px solid var(--alpha-border);
-          border-radius: 18px;
-          padding: 1.2rem;
-          min-height: 190px;
-          box-shadow: 0 22px 50px rgba(0, 0, 0, 0.26);
+          border-radius: 24px;
+          padding: 1.35rem;
+          min-height: 210px;
+          box-shadow: var(--alpha-shadow);
         }
 
         .alpha-card__kicker {
-          color: var(--alpha-blue);
+          color: var(--alpha-blue-strong);
           font-size: 0.8rem;
           font-weight: 700;
           letter-spacing: 0.08em;
@@ -245,9 +497,11 @@ def _inject_styles():
         }
 
         .alpha-card__title {
-          font-size: 1.2rem;
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.22rem;
           font-weight: 700;
           margin-top: 0.85rem;
+          color: var(--alpha-text);
         }
 
         .alpha-card__copy {
@@ -258,20 +512,148 @@ def _inject_styles():
         }
 
         .alpha-section {
-          margin-top: 4rem;
+          margin-top: 4.5rem;
         }
 
-        .alpha-pricing {
-          background: linear-gradient(180deg, rgba(18,24,33,0.96) 0%, rgba(14,19,27,0.96) 100%);
+        .alpha-section-heading {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 1rem;
+          margin-bottom: 1.15rem;
+        }
+
+        .alpha-section-heading h2 {
+          font-family: 'Manrope', sans-serif;
+          font-size: clamp(1.9rem, 3vw, 2.6rem);
+          margin: 0.2rem 0 0;
+        }
+
+        .alpha-section-intro {
+          max-width: 640px;
+          color: var(--alpha-dim);
+          line-height: 1.75;
+        }
+
+        .alpha-feature-band {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+          margin-top: 1.2rem;
+        }
+
+        .alpha-band-card {
+          background: var(--alpha-surface-2);
           border: 1px solid var(--alpha-border);
-          border-radius: 22px;
+          border-radius: 24px;
           padding: 1.5rem;
         }
 
+        .alpha-band-card h3 {
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.25rem;
+          margin: 0 0 0.7rem;
+        }
+
+        .alpha-band-card p {
+          color: var(--alpha-dim);
+          line-height: 1.75;
+          margin: 0;
+        }
+
+        .alpha-pricing {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+          gap: 1.2rem;
+          align-items: stretch;
+          background: var(--alpha-surface-2);
+          border: 1px solid var(--alpha-border);
+          border-radius: 28px;
+          padding: 1.7rem;
+          box-shadow: var(--alpha-shadow);
+        }
+
         .alpha-pricing__price {
-          color: var(--alpha-blue);
-          font-size: 2.4rem;
+          color: var(--alpha-blue-strong);
+          font-family: 'Manrope', sans-serif;
+          font-size: 2.8rem;
           font-weight: 800;
+        }
+
+        .alpha-pricing__card {
+          background: var(--alpha-soft-fill);
+          border: 1px solid var(--alpha-border);
+          border-radius: 22px;
+          padding: 1.35rem;
+        }
+
+        .alpha-pricing__list {
+          list-style: none;
+          padding: 0;
+          margin: 1rem 0 0;
+        }
+
+        .alpha-pricing__list li {
+          color: var(--alpha-text);
+          padding: 0.7rem 0;
+          border-top: 1px solid rgba(118, 155, 203, 0.1);
+        }
+
+        .alpha-pricing__list li:first-child {
+          border-top: 0;
+          padding-top: 0;
+        }
+
+        .alpha-contact {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .alpha-contact-card {
+          background: var(--alpha-surface-2);
+          border: 1px solid var(--alpha-border);
+          border-radius: 28px;
+          padding: 1.7rem;
+          box-shadow: var(--alpha-shadow);
+        }
+
+        .alpha-contact-box {
+          background: var(--alpha-soft-fill);
+          border: 1px solid var(--alpha-border);
+          border-radius: 22px;
+          padding: 1.2rem;
+          margin-top: 1rem;
+        }
+
+        .alpha-contact-label {
+          color: var(--alpha-dim);
+          font-size: 0.8rem;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .alpha-contact-value {
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: var(--alpha-text);
+          margin-top: 0.3rem;
+        }
+
+        .alpha-contact-copy {
+          color: var(--alpha-dim);
+          line-height: 1.75;
+          margin-top: 0.55rem;
+        }
+
+        .alpha-contact-form {
+          background: var(--alpha-surface-1);
+          border: 1px solid var(--alpha-border);
+          border-radius: 28px;
+          padding: 1.7rem;
+          box-shadow: var(--alpha-shadow);
         }
 
         .alpha-demo-shell {
@@ -289,15 +671,15 @@ def _inject_styles():
         }
 
         .alpha-demo-panel {
-          background: linear-gradient(180deg, rgba(18,24,33,0.96) 0%, rgba(16,21,30,0.96) 100%);
+          background: var(--alpha-surface-2);
           border: 1px solid var(--alpha-border);
           border-radius: 18px;
           padding: 1rem;
         }
 
         .alpha-demo-empty {
-          border: 1px dashed rgba(0,123,255,0.22);
-          background: linear-gradient(180deg, rgba(12,17,24,0.9) 0%, rgba(10,15,21,0.9) 100%);
+          border: 1px dashed var(--alpha-border);
+          background: var(--alpha-surface-1);
           border-radius: 16px;
           padding: 1rem;
           margin-bottom: 1rem;
@@ -316,7 +698,7 @@ def _inject_styles():
         }
 
         div[data-testid="stChatMessage"] {
-          background: rgba(18,24,33,0.88);
+          background: var(--alpha-panel);
           border: 1px solid var(--alpha-border);
           border-radius: 14px;
           padding: 12px;
@@ -339,14 +721,14 @@ def _inject_styles():
         }
 
         div[role="radiogroup"] label {
-          background: rgba(255,255,255,0.04);
+          background: var(--alpha-soft-fill);
           border: 1px solid var(--alpha-border);
           border-radius: 999px;
           padding: 0.3rem 0.8rem;
         }
 
         .alpha-metric-tile {
-          background: linear-gradient(180deg, rgba(18,24,33,0.96) 0%, rgba(16,21,30,0.96) 100%);
+          background: var(--alpha-surface-2);
           border: 1px solid var(--alpha-border);
           border-radius: 16px;
           padding: 1rem;
@@ -437,13 +819,19 @@ def _inject_styles():
 
         .stButton > button, .stLinkButton > a {
           border-radius: 999px !important;
-          min-height: 2.9rem;
+          min-height: 3.2rem;
+          font-size: 1rem;
+        }
+
+        [data-testid="stSegmentedControl"] {
+          background: transparent;
         }
 
         .stButton > button[kind="primary"] {
-          background: linear-gradient(90deg, #007BFF 0%, #1d93ff 100%);
+          background: linear-gradient(90deg, #4a8dff 0%, #6ea4ff 100%);
           color: #fff;
           border: 1px solid rgba(255,255,255,0.08);
+          font-weight: 700;
         }
 
         @media (max-width: 1024px) {
@@ -453,8 +841,15 @@ def _inject_styles():
             padding-right: 1rem;
           }
 
-          .alpha-grid {
+          .alpha-hero-shell,
+          .alpha-pricing,
+          .alpha-contact,
+          .alpha-feature-band {
             grid-template-columns: 1fr;
+          }
+
+          .alpha-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
           .alpha-overlay {
@@ -477,11 +872,34 @@ def _inject_styles():
           .alpha-title {
             font-size: 2.25rem;
           }
+
+          .alpha-nav {
+            top: 0.3rem;
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .alpha-proof,
+          .alpha-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .alpha-hero-copy,
+          .alpha-hero-panel,
+          .alpha-band-card,
+          .alpha-pricing,
+          .alpha-contact-card,
+          .alpha-contact-form {
+            padding: 1.25rem;
+            border-radius: 22px;
+          }
         }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    css = css.replace("__THEME_VARS__", theme_vars.strip())
+    css = css.replace("__APP_BACKGROUND__", app_background.strip())
+    css = css.replace("__SIDEBAR_BACKGROUND__", sidebar_background)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def _persist_upload(uploaded_file) -> Tuple[List[str], str]:
@@ -561,59 +979,199 @@ def _clear_demo_state():
 
 
 def _render_landing():
+    theme_cols = st.columns([5, 1.2])
+    with theme_cols[1]:
+        st.segmented_control(
+            "Theme",
+            ["Dark", "Light"],
+            key="theme_mode",
+            label_visibility="collapsed",
+        )
+
+    logo_uri = _logo_data_uri()
+    brand_markup = (
+        f"<div class='alpha-nav__brand'><img class='alpha-nav__logo' src='{logo_uri}' alt='Alpha-RAG logo' /><span>Alpha-RAG</span></div>"
+        if logo_uri
+        else "<div class='alpha-nav__brand'>Alpha-RAG</div>"
+    )
     st.markdown(
-        """
-        <section class="alpha-hero">
-          <div class="alpha-eyebrow">Institutional Dark Audit Layer</div>
-          <h1 class="alpha-title">Absolute Traceability for Institutional Finance.</h1>
-          <p class="alpha-subtitle">Stop reading 200-page 10-Ks. Start auditing with zero hallucinations.</p>
+        f"""
+        <nav class="alpha-nav">
+          {brand_markup}
+          <div class="alpha-nav__links">
+            <a href="#overview">Overview</a>
+            <a href="#capabilities">Capabilities</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#contact">Contact</a>
+            <a class="alpha-nav__cta" href="/?view=demo">Open Demo</a>
+          </div>
+        </nav>
+        <section class="alpha-hero" id="overview">
+          <div class="alpha-hero-shell">
+            <div class="alpha-hero-copy">
+              <div class="alpha-eyebrow">Institutional Audit Infrastructure</div>
+              <h1 class="alpha-title">Evidence-first financial review for serious teams.</h1>
+              <p class="alpha-subtitle">Alpha-RAG gives investment, diligence, and finance operators a clean path from question to filing evidence. The product is built to be professional, easy to navigate, and reliable under review.</p>
+              <div class="alpha-actions">
+                <a class="alpha-secondary-link" href="#contact">Talk to Sales</a>
+              </div>
+              <div class="alpha-proof">
+                <div class="alpha-proof__item">
+                  <div class="alpha-proof__value">No Source</div>
+                  <div class="alpha-proof__label">Unsupported claims are blocked instead of presented as answers.</div>
+                </div>
+                <div class="alpha-proof__item">
+                  <div class="alpha-proof__value">Page-Level</div>
+                  <div class="alpha-proof__label">Every response can point analysts back to filing evidence.</div>
+                </div>
+                <div class="alpha-proof__item">
+                  <div class="alpha-proof__value">Fast Review</div>
+                  <div class="alpha-proof__label">The interface reduces time spent digging through long SEC documents.</div>
+                </div>
+              </div>
+            </div>
+            <div class="alpha-hero-panel">
+              <div class="alpha-panel-label">Why Teams Buy</div>
+              <div class="alpha-panel-title">From document overload to auditable answers.</div>
+              <div class="alpha-panel-copy">Replace scattered reading workflows with a single workspace designed for document-backed decisions, quick verification, and executive-ready outputs.</div>
+              <ul class="alpha-list">
+                <li>Built for diligence teams, equity research, investor relations, and institutional finance operations.</li>
+                <li>Clear navigation, clean information density, and sections that are easy to scan on desktop and mobile.</li>
+                <li>Professional presentation for prospects who need trust before they request a live product walkthrough.</li>
+              </ul>
+            </div>
+          </div>
         </section>
         """,
         unsafe_allow_html=True,
     )
 
-    cta_cols = st.columns([1, 2])
+    cta_cols = st.columns([1, 1])
     with cta_cols[0]:
         if st.button("Try Alpha-RAG Live", type="primary", use_container_width=True):
             _set_route(DEMO_ROUTE)
     with cta_cols[1]:
         st.markdown(
-            "<div class='alpha-citation-note'>Built for diligence teams, equity research, and institutional finance operations that require evidence first.</div>",
+            "<div class='alpha-citation-note'>A professional landing page should make the value, the workflow, and the next step obvious within a few seconds.</div>",
             unsafe_allow_html=True,
         )
 
     st.markdown(
         """
-        <div class="alpha-grid">
-          <div class="alpha-card">
-            <div class="alpha-card__kicker">Pillar 01</div>
-            <div class="alpha-card__title">Zero Hallucination</div>
-            <div class="alpha-card__copy">No Source = No Answer. Alpha-RAG is designed to stop unsupported financial claims before they enter your workflow.</div>
+        <section class="alpha-section" id="capabilities">
+          <div class="alpha-section-heading">
+            <div>
+              <div class="alpha-eyebrow" style="margin-bottom:0.4rem;">Core Capabilities</div>
+              <h2>Designed for trust, speed, and reviewability.</h2>
+            </div>
+            <div class="alpha-section-intro">The site now reads like a real product company: one clear menu, structured feature sections, stronger pricing visibility, and a direct contact path for prospects.</div>
           </div>
-          <div class="alpha-card">
-            <div class="alpha-card__kicker">Pillar 02</div>
-            <div class="alpha-card__title">Clickable Citations</div>
-            <div class="alpha-card__copy">Every answer carries an auditable trail back to the filing context so analysts can verify the exact page-level evidence.</div>
+          <div class="alpha-grid">
+            <div class="alpha-card">
+              <div class="alpha-card__kicker">Pillar 01</div>
+              <div class="alpha-card__title">Zero Hallucination</div>
+              <div class="alpha-card__copy">No source means no answer. That standard protects teams from unsupported financial claims entering memos, notes, or recommendations.</div>
+            </div>
+            <div class="alpha-card">
+              <div class="alpha-card__kicker">Pillar 02</div>
+              <div class="alpha-card__title">Clickable Citations</div>
+              <div class="alpha-card__copy">Answers map back to filing evidence so analysts can validate the exact page context before sharing the output.</div>
+            </div>
+            <div class="alpha-card">
+              <div class="alpha-card__kicker">Pillar 03</div>
+              <div class="alpha-card__title">Controlled Security</div>
+              <div class="alpha-card__copy">The workflow is framed for sensitive document handling, professional review standards, and institutional expectations.</div>
+            </div>
           </div>
-          <div class="alpha-card">
-            <div class="alpha-card__kicker">Pillar 03</div>
-            <div class="alpha-card__title">Bank-Grade Security</div>
-            <div class="alpha-card__copy">A controlled, isolated pipeline architecture built for sensitive document workflows and professional review standards.</div>
+          <div class="alpha-feature-band">
+            <div class="alpha-band-card">
+              <h3>Clean navigation</h3>
+              <p>Visitors can move directly to overview, capabilities, pricing, or contact without hunting through the page. That is a basic requirement for a product site that needs to convert interest into conversations.</p>
+            </div>
+            <div class="alpha-band-card">
+              <h3>Better visual balance</h3>
+              <p>The color system now uses a refined navy and steel-blue palette with warmer accents, which feels more credible and less generic than a flat dark page with one bright button.</p>
+            </div>
           </div>
-        </div>
+        </section>
+        <section class="alpha-section" id="pricing">
+          <div class="alpha-pricing">
+            <div>
+              <div class="alpha-eyebrow" style="margin-bottom:0.4rem;">Pricing</div>
+              <h2 style="margin-top:0;">Professional License</h2>
+              <div class="alpha-pricing__price">$149<span style="font-size:1rem;color:#97a6ba;">/month</span></div>
+              <p class="alpha-card__copy">A clear pricing block gives prospects enough confidence to qualify themselves before they contact you. This version is easier to scan and ties the fee to the product outcome.</p>
+            </div>
+            <div class="alpha-pricing__card">
+              <div class="alpha-card__kicker">Included</div>
+              <ul class="alpha-pricing__list">
+                <li>Unlimited SEC document analysis</li>
+                <li>Citation-backed audit trail workflow</li>
+                <li>Metrics and investment review views</li>
+                <li>Professional institutional interface</li>
+              </ul>
+            </div>
+          </div>
+        </section>
         """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
         """
-        <section class="alpha-section" id="pricing">
-          <div class="alpha-pricing">
-            <div class="alpha-card__kicker">Pricing</div>
-            <h2 style="margin-top:0.6rem;">Professional License</h2>
-            <div class="alpha-pricing__price">$149<span style="font-size:1rem;color:#97a6ba;">/month</span></div>
-            <p class="alpha-card__copy">Unlimited SEC document analysis, full citation-backed audit trails, and a professional-grade institutional review workflow.</p>
+        <section class="alpha-section" id="contact">
+          <div class="alpha-section-heading">
+            <div>
+              <div class="alpha-eyebrow" style="margin-bottom:0.4rem;">Contact</div>
+              <h2>Give interested buyers a direct next step.</h2>
+            </div>
+            <div class="alpha-section-intro">The menu now includes a contact entry, and this section makes it easy for a visitor to request access, book a demo, or start a sales conversation.</div>
           </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    contact_cols = st.columns([1.05, 0.95], gap="large")
+    with contact_cols[0]:
+        st.markdown(
+            """
+            <div class="alpha-contact-card">
+              <div class="alpha-panel-title">Contact the Alpha-RAG team</div>
+              <div class="alpha-panel-copy">Use the form to collect inbound interest directly on the site. If you later connect email or a CRM, this section can send leads automatically without redesigning the page.</div>
+              <div class="alpha-contact-box">
+                <div class="alpha-contact-label">Best For</div>
+                <div class="alpha-contact-value">Private demos, pricing questions, and pilot requests</div>
+                <div class="alpha-contact-copy">This keeps the site conversion path simple: understand the product, review the price, and contact the team.</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with contact_cols[1]:
+        st.markdown("<div class='alpha-contact-form'>", unsafe_allow_html=True)
+        st.markdown("#### Request Product Access")
+        st.caption("Collect interest from visitors directly in the website navigation flow.")
+        with st.form("contact_form", clear_on_submit=True):
+            name = st.text_input("Full name")
+            email = st.text_input("Work email")
+            company = st.text_input("Company")
+            message = st.text_area(
+                "What do you want to know?",
+                placeholder="Tell us whether you want a demo, pricing details, or a pilot for your team.",
+                height=140,
+            )
+            submitted = st.form_submit_button("Send Request", use_container_width=True)
+
+        if submitted:
+            if name and email and message:
+                st.success(f"Thanks {name}. Your request is ready for the sales workflow.")
+            else:
+                st.error("Enter your name, work email, and message so the contact request is complete.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
         </section>
         """,
         unsafe_allow_html=True,
