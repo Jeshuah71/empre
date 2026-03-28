@@ -3,9 +3,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 from typing import Dict, List, Tuple
+from urllib import error, request
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -30,6 +32,7 @@ REPORT_PATHS = {
     "Microsoft Corp. (Q4 2025 10-Q)": BASE_DIR / "data" / "uploads" / "Microsoft_10Q.pdf",
 }
 PRICING_URL = "/?view=landing#pricing"
+FORMSPREE_ENDPOINT = os.getenv("FORMSPREE_ENDPOINT", "https://formspree.io/f/mdapawak")
 WORKSPACE_OPTIONS = ["Chat", "Metrics", "Investment"]
 QUICK_QUERY_MAP = {
     "NVIDIA Corp. (FY2025 10-K)": [
@@ -689,6 +692,11 @@ def _inject_styles():
           margin-bottom: 1.25rem;
         }
 
+        .alpha-demo-header h1 {
+          font-size: clamp(2.4rem, 5vw, 3.6rem);
+          line-height: 1;
+        }
+
         .alpha-demo-label {
           color: var(--alpha-dim);
           font-size: 0.88rem;
@@ -700,6 +708,7 @@ def _inject_styles():
           border: 1px solid var(--alpha-border);
           border-radius: 18px;
           padding: 1rem;
+          overflow: hidden;
         }
 
         .alpha-demo-empty {
@@ -888,6 +897,11 @@ def _inject_styles():
 
           .alpha-overlay {
             left: 0;
+            padding: 1.25rem;
+          }
+
+          .alpha-overlay__card {
+            width: min(560px, 100%);
           }
         }
 
@@ -911,11 +925,31 @@ def _inject_styles():
             top: 0.3rem;
             align-items: flex-start;
             flex-direction: column;
+            padding: 1rem;
           }
 
           .alpha-proof,
           .alpha-grid {
             grid-template-columns: 1fr;
+          }
+
+          .alpha-section {
+            margin-top: 3rem;
+          }
+
+          .alpha-section-heading {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          [data-testid="stHorizontalBlock"] {
+            flex-direction: column;
+            gap: 0.85rem;
+          }
+
+          [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
           }
 
           .alpha-hero-copy,
@@ -926,6 +960,61 @@ def _inject_styles():
           .alpha-contact-form {
             padding: 1.25rem;
             border-radius: 22px;
+          }
+
+          .alpha-pricing__price {
+            font-size: 2.2rem;
+          }
+
+          .alpha-demo-header h1 {
+            font-size: 2.1rem;
+          }
+
+          .alpha-demo-label,
+          .alpha-demo-empty__copy,
+          .alpha-card__copy,
+          .alpha-panel-copy,
+          .alpha-contact-copy,
+          .alpha-section-intro {
+            font-size: 0.94rem;
+            line-height: 1.6;
+          }
+
+          .alpha-demo-panel,
+          .alpha-demo-empty,
+          div[data-testid="stChatMessage"] {
+            border-radius: 16px;
+            padding: 0.9rem;
+          }
+
+          .alpha-metric-tile {
+            min-height: auto;
+            padding: 0.95rem;
+          }
+
+          .alpha-metric-value {
+            font-size: 1.32rem;
+          }
+
+          .alpha-overlay__card {
+            padding: 1.2rem;
+            border-radius: 18px;
+          }
+
+          .alpha-overlay__title {
+            font-size: 1.15rem;
+          }
+
+          .alpha-overlay__copy {
+            font-size: 0.94rem;
+            line-height: 1.6;
+          }
+
+          .stButton > button,
+          .stLinkButton > a {
+            min-height: 3rem;
+            font-size: 0.96rem;
+            white-space: normal;
           }
         }
         </style>
@@ -1016,6 +1105,44 @@ def _clear_demo_state():
     st.session_state.usage_count = 0
     st.session_state.raw_documents = []
     st.session_state.paywall_triggered = False
+
+
+def _submit_contact_form(name: str, email: str, company: str, message: str) -> Tuple[bool, str]:
+    payload = {
+        "name": name,
+        "email": email,
+        "company": company,
+        "message": message,
+        "source": "alpha-rag-landing",
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(
+        FORMSPREE_ENDPOINT,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8") if resp.length != 0 else "{}"
+            parsed = json.loads(body or "{}")
+            if 200 <= resp.status < 300:
+                return True, parsed.get("next", "")
+            return False, "Form submission failed."
+    except error.HTTPError as exc:
+        try:
+            parsed = json.loads(exc.read().decode("utf-8"))
+            errors = parsed.get("errors") or []
+            if errors:
+                return False, errors[0].get("message", "Form submission failed.")
+        except Exception:
+            pass
+        return False, "Form submission failed."
+    except Exception:
+        return False, "Form submission failed. Please try again."
 
 
 def _render_landing():
@@ -1205,7 +1332,11 @@ def _render_landing():
 
         if submitted:
             if name and email and message:
-                st.success(f"Thanks {name}. Your request is ready for the sales workflow.")
+                ok, error_message = _submit_contact_form(name, email, company, message)
+                if ok:
+                    st.success(f"Thanks {name}. Your request has been submitted.")
+                else:
+                    st.error(error_message)
             else:
                 st.error("Enter your name, work email, and message so the contact request is complete.")
         st.markdown("</div>", unsafe_allow_html=True)
