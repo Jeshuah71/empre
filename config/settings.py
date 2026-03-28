@@ -17,6 +17,7 @@ def _get_env(name: str, default: str = "") -> str:
 @dataclass(frozen=True)
 class LLMConfig:
     model: str = _get_env("GEMINI_MODEL", "gemini-2.5-flash")
+    openai_model: str = _get_env("OPENAI_MODEL", "gpt-4o-mini")
     temperature: float = 0.0
     max_tokens: int = int(_get_env("GEMINI_MAX_TOKENS", "1024"))
     top_p: float = float(_get_env("GEMINI_TOP_P", "1.0"))
@@ -39,8 +40,8 @@ class AppConfig:
 
 def validate_env() -> list[str]:
     missing = []
-    if not _get_env("GOOGLE_API_KEY"):
-        missing.append("GOOGLE_API_KEY")
+    if not _get_env("GOOGLE_API_KEY") and not _get_env("OPENAI_API_KEY"):
+        missing.append("GOOGLE_API_KEY or OPENAI_API_KEY")
     return missing
 
 

@@ -25,6 +25,12 @@ html, body, [class*="css"]  {{
   background: radial-gradient(1200px 800px at 10% 10%, #111a24 0%, {UI.theme_bg} 55%);
 }}
 
+.block-container {{
+  max-width: 1180px;
+  padding-top: 2rem;
+  padding-bottom: 6rem;
+}}
+
 h1, h2, h3 {{
   color: {UI.text};
   letter-spacing: 0.5px;
@@ -87,8 +93,158 @@ div[data-testid="stChatMessage"] {{
   padding: 12px;
 }}
 
+div[data-testid="stSidebar"] {{
+  background: linear-gradient(180deg, #23242d 0%, #262731 100%);
+}}
+
+div[role="radiogroup"] {{
+  gap: 0.4rem;
+}}
+
+div[role="radiogroup"] label {{
+  background: {UI.code_bg};
+  border: 1px solid {UI.border};
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+}}
+
+.metric-grid {{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 1rem 0 1.2rem;
+}}
+
+.metric-tile {{
+  background: linear-gradient(180deg, #111923 0%, #0f1720 100%);
+  border: 1px solid {UI.border};
+  border-radius: 12px;
+  padding: 14px;
+  min-height: 138px;
+}}
+
+.metric-tile__label {{
+  color: {UI.text_dim};
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}}
+
+.metric-tile__value {{
+  color: {UI.text};
+  font-size: 1.65rem;
+  font-weight: 600;
+  margin-top: 0.45rem;
+  line-height: 1.15;
+}}
+
+.metric-tile__trend {{
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 0.7rem;
+}}
+
+.metric-tile__note {{
+  color: {UI.text_dim};
+  font-size: 12px;
+  margin-top: 0.55rem;
+}}
+
+.investment-card {{
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  background: linear-gradient(180deg, #111923 0%, #0f1720 100%);
+  border: 1px solid {UI.border};
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0.75rem 0 1rem;
+}}
+
+.investment-card__stance {{
+  color: {UI.text_dim};
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}}
+
+.investment-card__value {{
+  color: {UI.text};
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0.3rem 0 0.8rem;
+}}
+
+.investment-card__bar {{
+  height: 10px;
+  width: 100%;
+  background: #1b2430;
+  border-radius: 999px;
+  overflow: hidden;
+}}
+
+.investment-card__bar span {{
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, {UI.accent} 0%, #3ea6ff 100%);
+  border-radius: 999px;
+}}
+
+.investment-card__rationale {{
+  color: {UI.text};
+  line-height: 1.55;
+}}
+
+.investment-card__verdict {{
+  color: {UI.text_dim};
+  margin-top: 0.7rem;
+  line-height: 1.45;
+}}
+
 small {{
   color: {UI.text_dim};
+}}
+
+@media (max-width: 1024px) {{
+  .block-container {{
+    max-width: 100%;
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+  }}
+
+  .metric-grid {{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }}
+
+  .investment-card {{
+    grid-template-columns: 1fr;
+  }}
+}}
+
+@media (max-width: 640px) {{
+  .block-container {{
+    padding-top: 1.1rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+    padding-bottom: 7rem;
+  }}
+
+  h1 {{
+    font-size: 2rem;
+  }}
+
+  .metric-grid {{
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }}
+
+  .metric-tile {{
+    min-height: auto;
+  }}
+
+  div[data-testid="column"] {{
+    min-width: 0;
+  }}
 }}
 </style>
         """,
