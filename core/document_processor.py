@@ -10,7 +10,6 @@ import re
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import APP, LLM
@@ -33,15 +32,24 @@ class DocumentProcessor:
     def __init__(self, embeddings=None):
         self.embeddings = embeddings or self._build_embeddings()
 
+    def _build_local_embeddings(self):
+        try:
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+        except Exception as exc:
+            raise DocumentProcessorError(
+                "Local embeddings are unavailable. Install sentence-transformers or set EMBEDDINGS_PROVIDER=google."
+            ) from exc
+        return HuggingFaceEmbeddings(model_name=LLM.local_embedding_model)
+
     def _build_embeddings(self):
         provider = (LLM.embeddings_provider or "").lower()
         if provider == "local":
-            return HuggingFaceEmbeddings(model_name=LLM.local_embedding_model)
+            return self._build_local_embeddings()
         try:
             return GoogleGenerativeAIEmbeddings(model=LLM.embedding_model)
         except Exception:
             # Fallback to local embeddings if Gemini embeddings are not available
-            return HuggingFaceEmbeddings(model_name=LLM.local_embedding_model)
+            return self._build_local_embeddings()
 
     def load_pdf(self, file_path: str):
         try:
@@ -82,7 +90,7 @@ class DocumentProcessor:
         except Exception:
             # If remote embeddings fail at runtime, fall back to local embeddings.
             try:
-                local_embeddings = HuggingFaceEmbeddings(model_name=LLM.local_embedding_model)
+                local_embeddings = self._build_local_embeddings()
                 return FAISS.from_documents(chunks, local_embeddings)
             except Exception as exc:
                 raise DocumentProcessorError(f"Failed to build vector store: {exc}") from exc

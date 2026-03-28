@@ -23,7 +23,7 @@ class LLMConfig:
     top_p: float = float(_get_env("GEMINI_TOP_P", "1.0"))
     embedding_model: str = _get_env("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
     local_embedding_model: str = _get_env("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-en")
-    embeddings_provider: str = _get_env("EMBEDDINGS_PROVIDER", "local")
+    embeddings_provider: str = _get_env("EMBEDDINGS_PROVIDER", "google")
 
 
 @dataclass(frozen=True)
