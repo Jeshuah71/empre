@@ -18,6 +18,7 @@ def _get_env(name: str, default: str = "") -> str:
 class LLMConfig:
     model: str = _get_env("GEMINI_MODEL", "gemini-2.5-flash")
     openai_model: str = _get_env("OPENAI_MODEL", "gpt-4o-mini")
+    openai_embedding_model: str = _get_env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     temperature: float = 0.0
     max_tokens: int = int(_get_env("GEMINI_MAX_TOKENS", "1024"))
     top_p: float = float(_get_env("GEMINI_TOP_P", "1.0"))
