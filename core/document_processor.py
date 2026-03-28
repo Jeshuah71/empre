@@ -10,6 +10,7 @@ import re
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import APP, LLM
@@ -32,6 +33,14 @@ class DocumentProcessor:
     def __init__(self, embeddings=None):
         self.embeddings = embeddings or self._build_embeddings()
 
+    def _build_openai_embeddings(self):
+        try:
+            return OpenAIEmbeddings(model=LLM.openai_embedding_model)
+        except Exception as exc:
+            raise DocumentProcessorError(
+                "OpenAI embeddings are unavailable. Set OPENAI_API_KEY or configure another embeddings provider."
+            ) from exc
+
     def _build_local_embeddings(self):
         try:
             from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -43,13 +52,17 @@ class DocumentProcessor:
 
     def _build_embeddings(self):
         provider = (LLM.embeddings_provider or "").lower()
+        if provider == "openai":
+            return self._build_openai_embeddings()
         if provider == "local":
             return self._build_local_embeddings()
         try:
             return GoogleGenerativeAIEmbeddings(model=LLM.embedding_model)
         except Exception:
-            # Fallback to local embeddings if Gemini embeddings are not available
-            return self._build_local_embeddings()
+            try:
+                return self._build_openai_embeddings()
+            except Exception:
+                return self._build_local_embeddings()
 
     def load_pdf(self, file_path: str):
         try:
@@ -88,12 +101,15 @@ class DocumentProcessor:
         try:
             return FAISS.from_documents(chunks, self.embeddings)
         except Exception:
-            # If remote embeddings fail at runtime, fall back to local embeddings.
             try:
-                local_embeddings = self._build_local_embeddings()
-                return FAISS.from_documents(chunks, local_embeddings)
-            except Exception as exc:
-                raise DocumentProcessorError(f"Failed to build vector store: {exc}") from exc
+                openai_embeddings = self._build_openai_embeddings()
+                return FAISS.from_documents(chunks, openai_embeddings)
+            except Exception:
+                try:
+                    local_embeddings = self._build_local_embeddings()
+                    return FAISS.from_documents(chunks, local_embeddings)
+                except Exception as exc:
+                    raise DocumentProcessorError(f"Failed to build vector store: {exc}") from exc
 
     def save_vectorstore(self, vectorstore: FAISS, index_dir: str, doc_count: int, chunk_count: int):
         try:
